@@ -1,0 +1,1 @@
+snakemake -k -j50 --cluster-config config/cluster.json -s snakemake.snakefile --cluster "qsub -l walltime={cluster.time} -l mem={cluster.mem} -l nodes={cluster.nodes}:ppn={cluster.ncpu} -o log/ -e log/" $*
