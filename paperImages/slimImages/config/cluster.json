@@ -1,0 +1,11 @@
+{
+	"__default__":
+	{
+		"time" : "24:00:00",
+   		"mem": "16G",
+		"nodes": "1",
+		"ncpu" : "1",
+		"out": "log/{rule}.o$PBS_JOBID.$PBS_JOBID.out",
+		"err":  "log/{rule}.e$PBS_JOBID.$PBS_JOBID.err"
+	}
+}
