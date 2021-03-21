@@ -11,7 +11,6 @@ import click
 
 @click.command()
 @click.option('-ord', '--order', help='Moment Order', type=int)
-@click.option('-it', '--interp_type', help='What type of interpolation to use', type=str)
 @click.option('-demog', help='Demography')
 @click.option('-m', help='mutation rate', type=float)
 @click.option('-s', help='selection coefficient', type=float)
