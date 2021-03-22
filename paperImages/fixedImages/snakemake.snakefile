@@ -129,7 +129,7 @@ rule gen_plots:
     run:
         shell('python3 ' + prefix + '''generateFixedPlots.py -oin ode_output/odeOutput_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}_minstep_{wildcards.min_step}_loglin_renorm_parsimonious-no.p -sin data/simuPopFixed_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}.p -ain {output.a_fn} -bin {output.b_fn} -abin {output.ab_fn} -ldin {output.ld_fn}''')
 
-run aggregate_performance:
+rule aggregate_performance:
     input:
         expand(perf_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious)
     output:
