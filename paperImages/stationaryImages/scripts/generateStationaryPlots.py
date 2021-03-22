@@ -44,9 +44,9 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
 
     # Define important file names
     sim_temp = 'data/simuPopStationary_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}.p'.format(m=m, r=r, window=window, init=init)
-    ode_temp = 'ode_output/odeOutput_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.p'.format(m=m, r=r, window=window, init=init)
-    hz_temp = 'images/hzPlot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
-    d2_temp = 'images/d2Plot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
+    ode_temp = 'ode_output/odeOutput_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_parsimonious-no.p'.format(m=m, r=r, window=window, init=init)
+    hz_temp = 'images/hzPlot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
+    d2_temp = 'images/d2Plot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
 
     ndems = 3
     ns = len(s_vals)
