@@ -122,7 +122,7 @@ def main(ode_fn, simupop_fn, a_freq_fn, b_freq_fn, ab_freq_fn, ld_fn):
         ax1.plot(x_axis, a_freqs_mean, label='Simulations',  color=col, linestyle='dashed')
         ax1.fill_between(x_axis, a_freqs_mean - 1.96*a_freqs_se, a_freqs_mean + 1.96*a_freqs_se, color=col, alpha=.2)
         ax1.plot(ode_x_axis, a_freqs_ode, label='ODE', color=col)
-        ax1.set_title('Expected Selected Allele Frequency')
+        ax1.set_ylabel('Exp. Selected Allele Frequency')
         ax1.set_xlabel('Generations Before Present')
         ax1.set_xlim(10000, 0)
         
@@ -131,7 +131,7 @@ def main(ode_fn, simupop_fn, a_freq_fn, b_freq_fn, ab_freq_fn, ld_fn):
         ax2.plot(x_axis, b_freqs_mean, label='Simulations',  color=col, linestyle='dashed')
         ax2.fill_between(x_axis, b_freqs_mean - 1.96*b_freqs_se, b_freqs_mean + 1.96*b_freqs_se, alpha=.2, color=col)
         ax2.plot(ode_x_axis, b_freqs_ode, label='ODE', color=col)
-        ax2.set_title('Expected Neutral Allele Frequency')
+        ax2.set_ylabel('Exp. Neutral Allele Frequency')
         ax2.set_xlabel('Generations Before Present')
         ax2.set_xlim(10000, 0)
 
@@ -139,7 +139,7 @@ def main(ode_fn, simupop_fn, a_freq_fn, b_freq_fn, ab_freq_fn, ld_fn):
         ax3.plot(x_axis, ab_freqs_mean, label='Simulations',  color=col, linestyle='dashed')
         ax3.fill_between(x_axis, ab_freqs_mean - 1.96*ab_freqs_se, ab_freqs_mean + 1.96*ab_freqs_se, alpha=.2, color=col)
         ax3.plot(ode_x_axis, ab_freqs_ode, label='ODE', color=col)
-        ax3.set_title('Expected Haplotype Frequency')
+        ax3.set_ylabel('Exp. Haplotype Frequency')
         ax3.set_xlabel('Generations Before Present')
         ax3.set_xlim(10000, 0)
 
@@ -147,7 +147,7 @@ def main(ode_fn, simupop_fn, a_freq_fn, b_freq_fn, ab_freq_fn, ld_fn):
         ax4.plot(x_axis, ld_freqs_mean, label='Simulations',  color=col, linestyle='dashed')
         ax4.fill_between(x_axis, ld_freqs_mean - 1.96*ld_freqs_se, ld_freqs_mean + 1.96*ld_freqs_se, alpha=.2, color=col)
         ax4.plot(ode_x_axis, ld_freqs_ode, label='ODE', color=col)
-        ax4.set_title('Expected Linkage Disequilibrium')
+        ax4.set_ylabel('Exp. Linkage Disequilibrium')
         ax4.set_xlabel('Generations Before Present')
         ax4.set_xlim(10000, 0)
         
