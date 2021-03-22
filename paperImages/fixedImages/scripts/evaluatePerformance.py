@@ -20,7 +20,7 @@ def main(ode_in, simupop_in, out_fn):
 
     # Output NANs if ODE failed to integrate
     if ode_all['data'] == 'Error':
-        out = [ode_params['it'], ode_params['interp_type'], ode_params['rn'], ode_params['clip'], ode_params['par'], 
+        out = [ode_params['it'], ode_params['interp_type'], ode_params['rn'], ode_params['par'], 
         ode_params['min_step'], ode_params['s'], ode_params['r'],
             np.nan,
             np.nan,
@@ -82,7 +82,7 @@ def main(ode_in, simupop_in, out_fn):
     lik_dif_gen, sim_lik_tot = get_likelihood_diffs(ode['liks'][full_idx, :], hap_freqs_gen, moments, mc)
 
     # generate output
-    out = [ode_params['it'], ode_params['init'], demog, ode_params['rn'], ode_params['clip'], ode_params['par'], ode_params['min_step'],
+    out = [ode_params['it'], ode_params['init'], demog, ode_params['rn'], ode_params['par'], ode_params['min_step'],
             ode_params['s'], ode_params['r'],
             np.abs(lik_dif_bot).mean(),
             np.abs(lik_dif_exp).mean(),
