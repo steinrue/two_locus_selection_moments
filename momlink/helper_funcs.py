@@ -171,15 +171,7 @@ class MomentInterpolator(object):
         n2 = mom[1]
         n3 = mom[2]
         n4 = mom[3]
-        # out = ((2*a[4] + a[7] + a[8] + 5*a[2] + 2*a[5] + a[9] + 5*a[3] + 2*a[6] + 3*a[4]*mom[0] + 
-        #         a[7]*mom[0] + a[8]*mom[0] + a[2]*mom[0] + a[3]*mom[0] + a[4]*mom[0]**2 + a[7]*mom[1] + 6*a[2]*mom[1] + 
-        #         3*a[5]*mom[1] + a[9]*mom[1] + a[3]*mom[1] + a[7]*mom[0]*mom[1] + a[2]*mom[0]*mom[1] + a[2]*mom[1]**2 + 
-        #         a[5]*mom[1]**2 + a[8]*mom[2] + a[2]*mom[2] + a[9]*mom[2] + 6*a[3]*mom[2] + 3*a[6]*mom[2] + 
-        #         a[8]*mom[0]*mom[2] + a[3]*mom[0]*mom[2] + a[2]*mom[1]*mom[2] + a[9]*mom[1]*mom[2] + a[3]*mom[1]*mom[2] + a[3]*mom[2]**2 + 
-        #         a[6]*mom[2]**2 + (a[2]+ a[3]+ a[2]*mom[1] + a[3]*mom[2])*mom[3] + 
-        #         a[1]*(1 + mom[0])*(5 + mom[0] + mom[1] + mom[2] + mom[3]) + 
-        #         a[0]*(4 + mom[0] + mom[1] + mom[2] + mom[3])*(5 + mom[0] + mom[1] + mom[2] + mom[3]))
-        #         *gamma(1 + mom[0])*gamma(1 + mom[1])*gamma(1 + mom[2])*gamma(1 + mom[3]))/gamma(6 + sum(mom))
+
 
         out = (((5*a2 + 5*a3 + 2*a4 + 2*a5 + 2*a6 + a7 + a8 + a9 + a2*n1 + a3*n1 + 
                     3*a4*n1 + a7*n1 + a8*n1 + a4*n1**2 + 6*a2*n2 + a3*n2 + 3*a5*n2 + 
@@ -188,8 +180,8 @@ class MomentInterpolator(object):
                     a2*n2*n3 + a3*n2*n3 + a9*n2*n3 + a3*n3**2 + 
                     a6*n3**2 + (a2 + a3 + a2*n2 + a3*n3)*n4 + 
                     a1*(1 + n1)*(5 + n1 + n2 + n3 + n4) + 
-                    a0*(4 + n1 + n2 + n3 + n4)*(5 + n1 + n2 + n3 + n4))*gamma(
-                    1 + n1)*gamma(1 + n2)*gamma(1 + n3)*gamma(1 + n4))/
+                    a0*(4 + n1 + n2 + n3 + n4)*(5 + n1 + n2 + n3 + n4))
+                    * gamma(1 + n1+ n2 + n3 + n4)) /
                         gamma(6 + n1 + n2 + n3 + n4))
         return out
 
