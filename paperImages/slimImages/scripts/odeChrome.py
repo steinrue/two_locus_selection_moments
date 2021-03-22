@@ -21,7 +21,7 @@ import click
 @click.option('-out_file', help='Filename to output to', type=str)
 @click.option('-min_step', help='Minimum step size for ode', type=float)
 @click.option('-num_loci', help='How many loci to include', type=int)
-def main(order, interp_type, renorm, clip, parsimonious, demog_fn, m, s, r, init, gens, out_file, min_step, num_loci):
+def main(order, demog_fn, m, s, r, init, gens, out_file, min_step, num_loci):
 
     # Initialize parameters and recombination grid
     gens = json.loads(gens)
