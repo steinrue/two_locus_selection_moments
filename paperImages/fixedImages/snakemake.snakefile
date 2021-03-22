@@ -131,7 +131,7 @@ rule gen_plots:
 
 rule aggregate_performance:
     input:
-        expand(perf_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious)
+        expand(perf_fn, demographies=demographies, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious)
     output:
         out = total_perf_fn
     run:
