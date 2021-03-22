@@ -41,8 +41,8 @@ def main(grid_fn, m, r, init, s_vals, window_vals):
     plt.rc('legend', fontsize=MEDIUM_SIZE)
 
     slim_temp = 'data/slim_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}.p'.format(m=m, r=r, init=init)
-    ode_temp = 'ode_output/odeOutput_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.p'.format(m=m, r=r, init=init)
-    sfs_temp = 'images/sfs_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, init=init)
+    ode_temp = 'ode_output/odeOutput_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_minstep_0.0001_loglin_renorm_parsimonious-no.p'.format(m=m, r=r, init=init)
+    sfs_temp = 'images/sfs_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_minstep_0.0001_loglin_renorm_parsimonious-no.pdf'.format(m=m, r=r, init=init)
 
     c1=np.array(mpl.colors.to_rgb('red'))
     c2=np.array(mpl.colors.to_rgb('blue'))
