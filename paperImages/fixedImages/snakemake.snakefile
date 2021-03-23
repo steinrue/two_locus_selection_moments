@@ -122,12 +122,12 @@ rule gen_plots:
         expand('ode_output/odeOutput_dem_{demographies}_s_{{s}}_r_{{r}}_i_{{init}}_minstep_{{min_step}}_loglin_renorm_parsimonious-no.p', demographies=demographies),
         expand('data/simuPopFixed_dem_{demographies}_s_{{s}}_r_{{r}}_i_{{init}}.p', demographies=demographies)
     output:
-        a_fn = a_fn,
-        b_fn = b_fn,
-        ab_fn = ab_fn,
-        ld_fn = ld_fn
+        a_fn_ll = 'images/aTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
+        b_fn_ll = 'images/bTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
+        ab_fn_ll = 'images/abTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
+        ld_fn_ll = 'images/ldTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf'
     run:
-        shell('python3 ' + prefix + '''generateFixedPlots.py -oin ode_output/odeOutput_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}_minstep_{wildcards.min_step}_loglin_renorm_parsimonious-no.p -sin data/simuPopFixed_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}.p -ain {output.a_fn} -bin {output.b_fn} -abin {output.ab_fn} -ldin {output.ld_fn}''')
+        shell('python3 ' + prefix + '''generateFixedPlots.py -oin ode_output/odeOutput_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}_minstep_{wildcards.min_step}_loglin_renorm_parsimonious-no.p -sin data/simuPopFixed_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}.p -ain {output.a_fn_ll} -bin {output.b_fn_ll} -abin {output.ab_fn_ll} -ldin {output.ld_fn_ll}''')
 
 rule aggregate_performance:
     input:
