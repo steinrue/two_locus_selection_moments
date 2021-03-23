@@ -57,10 +57,10 @@ min_step = [10**-4]
 prefix = 'scripts/'
 sims_out = 'data/simuPopFixed_dem_{demographies}_s_{s}_r_{r}_i_{init}.p'
 ode_out = 'ode_output/odeOutput_dem_{demographies}_s_{s}_r_{r}_i_{init}_minstep_{min_step}_{it}_{renorm}_{parsimonious}.p'
-a_fn = 'images/aTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_{it}_{renorm}_{parsimonious}.pdf'
-b_fn = 'images/bTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_{it}_{renorm}_{parsimonious}.pdf'
-ab_fn = 'images/abTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_{it}_{renorm}_{parsimonious}.pdf'
-ld_fn = 'images/ldTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_{it}_{renorm}_{parsimonious}.pdf'
+a_fn_ll = 'images/aTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
+b_fn_ll = 'images/bTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
+ab_fn_ll = 'images/abTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
+ld_fn_ll = 'images/ldTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
 perf_fn = 'data/odePerformance_dem_{demographies}_s_{s}_r_{r}_i_{init}_minstep_{min_step}_{it}_{renorm}_{parsimonious}.csv'
 total_perf_fn = 'data/odePerformance_all.csv'
 
@@ -69,10 +69,10 @@ rule all:
     input: 
         expand(sims_out, s=s, r=r, init=init, demographies=demographies),
         expand(ode_out, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious, demographies=demographies),
-        expand(a_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious),
-        expand(b_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious),
-        expand(ab_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious),
-        expand(ld_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious),
+        expand(a_fn_ll, s=s, r=r, init=init, min_step=min_step),
+        expand(b_fn_ll, s=s, r=r, init=init, min_step=min_step),
+        expand(ab_fn_ll, s=s, r=r, init=init, min_step=min_step),
+        expand(ld_fn_ll, s=s, r=r, init=init, min_step=min_step),
         expand(perf_fn, s=s, r=r, init=init, min_step=min_step, it=it, renorm=renorm, parsimonious=parsimonious, demographies=demographies),
         expand(total_perf_fn)
 
@@ -122,10 +122,10 @@ rule gen_plots:
         expand('ode_output/odeOutput_dem_{demographies}_s_{{s}}_r_{{r}}_i_{{init}}_minstep_{{min_step}}_loglin_renorm_parsimonious-no.p', demographies=demographies),
         expand('data/simuPopFixed_dem_{demographies}_s_{{s}}_r_{{r}}_i_{{init}}.p', demographies=demographies)
     output:
-        a_fn_ll = 'images/aTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
-        b_fn_ll = 'images/bTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
-        ab_fn_ll = 'images/abTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf',
-        ld_fn_ll = 'images/ldTraj_s_{s}_r_{r}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf'
+        a_fn_ll = a_fn_ll,
+        b_fn_ll = b_fn_ll,
+        ab_fn_ll = ab_fn_ll,
+        ld_fn_ll = ld_fn_ll
     run:
         shell('python3 ' + prefix + '''generateFixedPlots.py -oin ode_output/odeOutput_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}_minstep_{wildcards.min_step}_loglin_renorm_parsimonious-no.p -sin data/simuPopFixed_dem_demographies_s_{wildcards.s}_r_{wildcards.r}_i_{wildcards.init}.p -ain {output.a_fn_ll} -bin {output.b_fn_ll} -abin {output.ab_fn_ll} -ldin {output.ld_fn_ll}''')
 
