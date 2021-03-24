@@ -145,7 +145,7 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
 
             # ax1.set_xlabel('Distance from Focal Local')
             if j == 0:
-                ax1.set_ylabel('Expected $D_2$')
+                ax1.set_ylabel('Expected $D^2$')
             ax1.set_title('$\sigma$ = '+ str(s*4*10000) + ' and time of introduction ' + demo_symbol[j])
             
             if i == 2:
