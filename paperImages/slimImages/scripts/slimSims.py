@@ -147,7 +147,7 @@ def main(n, truen, num_loci, reps, s, m, r,  init, bot_gen, exp_gen, bot_size, g
     '''.format(max_gens)
 
     script_growth = '''
-    s2 {} {{newSize = asInteger(round(exp(GR * (sim.generation - ES)) * BS));
+    s2 {}: {{newSize = asInteger(round(exp(GR * (sim.generation - ES)) * BS));
             p1.setSubpopulationSize(newSize);}}
             '''.format(max_gens)
 
