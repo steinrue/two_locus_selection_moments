@@ -11,6 +11,7 @@ import scipy.optimize as optimize
 import sympy.ntheory.multinomial
 
 from .helper_funcs import MomentInterpolator, Moments
+from  .moran import Moran
 from .integrator import Integrator
 
 # I use the following ordering of coorindates:
@@ -31,6 +32,7 @@ class TwoLocMomOde(object):
         self.parsimonious = parsimonious
         self.renorm = renorm
         self.interp_type = interp_type
+        self.d_size = 64
 
         # Generate moment objects
         self.moms = Moments(order)
@@ -64,19 +66,44 @@ class TwoLocMomOde(object):
         # 1 -> a -> A
         # 2 -> B -> b
         # 3 -> b -> B
-        self.theta = [4*self.pop_size*rate for rate in params['mut']]
+        
         self.sig = 4*self.pop_size*params['s']
         self.rho = 4*self.pop_size*params['r']
         self.init = params['init']
         self.dr_mat = self.lam*self.dr_mat_skel # drift
-        self.rmut_mat = sum([x * y for (x, y) in zip(self.rmut_mats_skel, self.theta)]).tocsr() # mutation 
+
+        # decide on mutation model
+        self.theta = [4*self.pop_size*rate for rate in params['mut']]
+        if 'mutModel' not in params:
+            params['mutModel'] = 'rec'
+             
+        if (params['mutModel'] == "rec"):
+            self.recMut = True
+            self.rmut_mat = sum([x * y for (x, y) in zip(self.rmut_mats_skel, self.theta)]).tocsr() # mutation
+        elif (params['mutModel'] == "prf"):
+            self.recMut = False
+            # make sure all PRF
+            assert (np.isclose(self.theta[0],0))
+            assert (np.isclose(self.theta[1],0))
+            assert (np.isclose(self.theta[2],self.theta[3]))
+            # no matrices here, cause this is all inhomogeneous
+        else:
+            # tertium non datur
+            assert (False)
         self.sel_mat_in = self.sig*self.sel_mat_in_skel # selection
         self.sel_mat_out = self.sig*self.sel_mat_out_skel
         self.rec_mat_in = self.rho*self.rec_mat_in_skel # recombination
         self.rec_mat_out = self.rho*self.rec_mat_out_skel
         
         # Generate initial conditions
-        if self.init == 'Stationary':
+        if self.init == 'Standing':
+            try:
+                self.moran_model.set_params(self.theta, self.rho)
+            except:
+                self.moran_model = Moran(self.moms, self.theta, self.rho, self.order)         
+            finally:
+                self.start = self.moran_model.stationary()
+        elif self.init == 'Stationary' and self.recMut:
             if 'initial_freq'in params:
                 if params['initial_freq'] is not None:
                     self.start = self.comp_1L_stationary(initial_freq=params['initial_freq'])
@@ -84,6 +111,16 @@ class TwoLocMomOde(object):
                     self.start = self.comp_1L_stationary()
             else:
                 self.start = self.comp_1L_stationary()
+        elif self.init == 'StationaryPRF' and not self.recMut:
+            if 'initial_freq'in params:
+                self.start = self.comp_stationary_prf (initial_freq=params['initial_freq'])
+            else:
+                raise Exception('Invalid initial condition.')
+        elif self.init == 'MarginalMoms':
+            if (('initial_freq'in params) and ('marg_mom' in params)):
+                self.start = self.comp_stationary_mom_beta(initial_freq=params['initial_freq'], margMom=params['marg_mom'])
+            else:
+                raise Exception('Invalid initial condition.')
         elif len(self.init) == self.nmom:
             self.start = self.init
         elif len(self.init) == 3 and sum(self.init) <= 1:
@@ -104,40 +141,269 @@ class TwoLocMomOde(object):
         self.rec_mat_in = self.rho*self.rec_mat_in_skel # recombination
         self.rec_mat_out = self.rho*self.rec_mat_out_skel
 
-    def comp_1L_stationary(self, initial_freq=None, polarized=False):
+    def comp_stationary_prf (self, initial_freq=None, polarized=False):
+        # this should be alpha = 0, beta = 1 for the stationary density
+        # some integrals don't exist though
+        if initial_freq is None:
+            initial_freq = 1/(2*self.pop_size)
+        out = np.zeros(self.moms.nmom)
+
+        assert (np.isclose (self.theta[3], self.theta[2]))
+        Theta = self.theta[2]
+        Alpha = 0
+        Beta = 1
+        betaab = 1
+
+        beta_lookup = {}
+        for i in range(0, self.order+2):
+            for j in range(0, self.order+2):
+                # these only work in some cases with Alpha = 0
+                # but that's ok, because we should not need the other ones
+                if (j > 0):
+                    beta_lookup[(j, i, 1)] = beta(Alpha+j, Beta+i)         
+                    beta_lookup[(j, i, 1-initial_freq)] = betainc(Alpha+j, Beta+i, 1-initial_freq) * beta(Alpha+j, Beta+i)
+                    beta_lookup[(j, i, initial_freq)] = betainc(Alpha+j, Beta+i, initial_freq) * beta(Alpha+j, Beta+i)
+
+        mc = sympy.ntheory.multinomial.multinomial_coefficients(4, int(self.order))
+        for i, mom in enumerate(self.moms.moms):
+            # Blinked
+            if mom[1] == 0:
+                for j in range(0, mom[2]+1):
+                    out[i] += (binom(mom[2], j) * (-initial_freq)**(mom[2]-j) * (initial_freq)**(mom[0]) *
+                                            (beta_lookup[(j+1, +mom[3], 1)]
+                                            -beta_lookup[(j+1, mom[3], initial_freq)])/betaab)
+            # blinked (only finite if mom[2] > 0)
+            if (mom[0] == 0) and (not polarized) and (mom[2] > 0):
+                for j in range(0, mom[3]+1):
+                    out[i] += (binom(mom[3], j) * (-initial_freq)**(mom[3]-j) * (initial_freq)**(mom[1]) *
+                                            (beta_lookup[(mom[2], j+1, 1-initial_freq)])/betaab)
+            out[i] *= Theta * mc[mom]
+
+        # now we have to distribute the mass that's left on the states with mom[0] == 0 and mom[2] == 0
+        totalLeft = 1 - np.sum(out)
+
+        for i, mom in enumerate(self.moms.moms):
+            # only the ones where neutral is all ancestral
+            if ((mom[0] == 0) and (mom[2] == 0)):
+                # mom[1] is number of derived beneficial
+                # just the sampling probability for the beneficial
+                out[i] += totalLeft * scipy.stats.binom.pmf (mom[1], self.order, initial_freq)
+
+        return out/np.sum(out)
+
+    def comp_stationary_mom_beta (self, initial_freq=None, polarized=False, margMom=None):
+
+        print('Initializing ode')
+        if initial_freq is None:
+            initial_freq = 1/(2*self.pop_size)
+        
+        # make sure margMom describe proper marginal moments
+        assert (np.min(margMom) >= 0)
+        assert (np.isclose(np.sum(margMom),1))
+        # they have to be one bigger
+        # we are ok with same order
+        assert (len(margMom) > 2)
+
+        # downsample the margMom
+        n = len(margMom)-1
+        downsampled = {}
+        downsampled[n] = margMom.copy()
+        while (n >= 1):
+            n -= 1
+            # here we should take the regular one
+            upSFS = downsampled[n+1]
+            downSFS = np.zeros (n+1)
+            # iterate over entries in downSFS
+            for i in range(n+1):
+                downSFS[i] = (n+1-i)/(n+1) * upSFS[i] + (i+1)/(n+1) * upSFS[i+1]
+            # save the regular one
+            downsampled[n] = downSFS.copy()
+            # if (n < 4):
+            assert (np.isclose (np.sum (downSFS), 1))
+
+        # estimate alpha and beta
+        m = downsampled[1][1]
+        v = downsampled[2][2] - m*m
+        # method of moments
+        Alpha = (m*(1-m)/v - 1)*m
+        Beta = (m*(1-m)/v - 1)*(1-m)
+
+        # prepare container to return
+        out = np.zeros(self.moms.nmom)
+
+        # Initialize beta functions
+        betaab = beta (Alpha, Beta)
+        beta_lookup = {}
+        for i in range(0, self.order+2):
+            for j in range(0, self.order+2):
+                beta_lookup[(j, i, 1)] = beta(Alpha+j, Beta+i)         
+                beta_lookup[(j, i, 1-initial_freq)] = betainc(Alpha+j, Beta+i, 1-initial_freq) * beta(Alpha+j, Beta+i)
+                beta_lookup[(j, i, initial_freq)] = betainc(Alpha+j, Beta+i, initial_freq) * beta(Alpha+j, Beta+i)
+
+        mc = sympy.ntheory.multinomial.multinomial_coefficients(4, int(self.order))
+        for i, mom in enumerate(self.moms.moms):
+            # mom[1] is Ab, so this should be Blink
+            if mom[1] == 0:
+                for j in range(0, mom[2]+1):
+                    out[i] += (binom(mom[2], j) * (-initial_freq)**(mom[2]-j) * (initial_freq)**(mom[0]) *
+                                            (beta_lookup[(j, mom[3], 1)]
+                                            -beta_lookup[(j, mom[3], 1-initial_freq)])/betaab)
+                    out[i] += (binom(mom[2], j) * (-initial_freq)**(mom[2]-j) * (initial_freq)**(mom[0]) *
+                                            (beta_lookup[(j+1, mom[3], 1-initial_freq)]
+                                            -beta_lookup[(j+1, mom[3], initial_freq)])/betaab)
+            # mom[0] is AB, so this should be blink
+            if mom[0] == 0 and not polarized:
+                for j in range(0, mom[3]+1):
+                    out[i] += (binom(mom[3], j) * (-initial_freq)**(mom[3]-j) * (initial_freq)**(mom[1]) *
+                                            (beta_lookup[(mom[2], j+1, 1-initial_freq)]
+                                            -beta_lookup[(mom[2], j+1, initial_freq)])/betaab)
+                    out[i] += (binom(mom[3], j) * (-initial_freq)**(mom[3]-j) * (initial_freq)**(mom[1]) *
+                                            (beta_lookup[(mom[2], j, initial_freq)])/betaab)
+            out[i] *= mc[mom]
+
+        print (np.sum(out))
+        return out/np.sum(out)
+
+
+    def comp_1L_stationary(self, initial_freq=None):
         if initial_freq is None:
             initial_freq = 1/(2*self.pop_size)
         out = np.zeros(self.moms.nmom)
         # Initialize beta functions
         betaab = beta(self.theta[3], self.theta[2])
         beta_lookup = {}
-        for i in range(0, self.order+1):
-            for j in range(0, self.order+1):
-                beta_lookup[(self.theta[3]+j+1, self.theta[2]+i, 1)] = beta(self.theta[3]+j+1, self.theta[2]+i)         
-                beta_lookup[(self.theta[3]+j+1, self.theta[2]+i, 1-initial_freq)] = betainc(self.theta[3]+j+1, self.theta[2]+i, 1-initial_freq) * beta(self.theta[3]+j+1, self.theta[2]+i)
-                beta_lookup[(self.theta[3]+j+1, self.theta[2]+i, initial_freq)] = betainc(self.theta[3]+j+1, self.theta[2]+i, initial_freq) * beta(self.theta[3]+j+1, self.theta[2]+i)
-                beta_lookup[(self.theta[3]+i, self.theta[2]+j+1, 1-initial_freq)] = betainc(self.theta[3]+i, self.theta[2]+j+1, 1-initial_freq) * beta(self.theta[3]+i, self.theta[2]+j+1)
-                beta_lookup[(self.theta[3]+i, self.theta[2]+j+1, initial_freq)] = betainc(self.theta[3]+i, self.theta[2]+j+1, initial_freq) * beta(self.theta[3]+i, self.theta[2]+j+1)
+        for i in range(0, self.order+2):
+            for j in range(0, self.order+2):
+                # Factors are due to definition of scipy beta, betainc
+                beta_lookup[(j, i, 1)] = beta(self.theta[3]+j, self.theta[2]+i)         
+                beta_lookup[(j, i, 1-initial_freq)] = betainc(self.theta[3]+j, self.theta[2]+i, 1-initial_freq) * beta(self.theta[3]+j, self.theta[2]+i)
+                beta_lookup[(j, i, initial_freq)] = betainc(self.theta[3]+j, self.theta[2]+i, initial_freq) * beta(self.theta[3]+j, self.theta[2]+i)
 
         mc = sympy.ntheory.multinomial.multinomial_coefficients(4, int(self.order))
         for i, mom in enumerate(self.moms.moms):
             if mom[1] == 0:
                 for j in range(0, mom[2]+1):
                     out[i] += (binom(mom[2], j) * (-initial_freq)**(mom[2]-j) * (initial_freq)**(mom[0]) *
-                                            (beta_lookup[(self.theta[3]+j+1, self.theta[2]+mom[3], 1)]
-                                            -beta_lookup[(self.theta[3]+j+1, self.theta[2]+mom[3], 1-initial_freq)])/betaab)
+                                            (beta_lookup[(j, mom[3], 1)]
+                                            -beta_lookup[(j, mom[3], 1-initial_freq)])/betaab)
                     out[i] += (binom(mom[2], j) * (-initial_freq)**(mom[2]-j) * (initial_freq)**(mom[0]) *
-                                            (beta_lookup[(self.theta[3]+j+1, self.theta[2]+mom[3], 1-initial_freq)]
-                                            -beta_lookup[(self.theta[3]+j+1, self.theta[2]+mom[3], initial_freq)])/betaab)
-            if mom[0] == 0 and not polarized:
+                                            (beta_lookup[(j+1, mom[3], 1-initial_freq)]
+                                            -beta_lookup[(j+1, mom[3], initial_freq)])/betaab)
+            if mom[0] == 0:
                 for j in range(0, mom[3]+1):
                     out[i] += (binom(mom[3], j) * (-initial_freq)**(mom[3]-j) * (initial_freq)**(mom[1]) *
-                                            (beta_lookup[(self.theta[3]+mom[2], self.theta[2]+j+1, 1-initial_freq)]
-                                            -beta_lookup[(self.theta[3]+mom[2], self.theta[2]+j+1, initial_freq)])/betaab)
+                                            (beta_lookup[(mom[2], j+1, 1-initial_freq)]
+                                            -beta_lookup[(mom[2], j+1, initial_freq)])/betaab)
                     out[i] += (binom(mom[3], j) * (-initial_freq)**(mom[3]-j) * (initial_freq)**(mom[1]) *
-                                            (beta_lookup[(self.theta[3]+mom[2], self.theta[2]+j+1, initial_freq)])/betaab)
+                                            (beta_lookup[(mom[2], j, initial_freq)])/betaab)
             out[i] *= mc[mom]
         return out/np.sum(out)
+
+
+    # this one is all inhomogeneous mutations
+    def newPRFmut(self, m, Theta):
+        # see about all inhomogeneous
+        n = self.order
+        # make a vector for the net flow
+        mutNetFlow = np.zeros(self.moms.nmom)
+
+        #first, what's the total inflow?
+        mutInFlux = n * 0.5 * Theta
+
+        # so now, where do they come from, and where do they go
+        # where do they come from, cotton eye joe
+
+        # 0 - AB
+        # 1 - Ab
+        # 2 - aB
+        # 3 - ab
+
+        # who can be hit by a mutation?
+        # only the b background can be hit
+        # so let's go by how many A linked to b
+        # 0 is all ancestral (most), n is all beneficial derived
+        # first collect all, to see how we divvy up
+        flowWeights = np.zeros (n+1)
+        for n_A in range(0,n+1):
+            srcIdx = self.moms.lookup_table[(0,n_A,0,n-n_A)]
+            flowWeights[n_A] = m[srcIdx]
+        # and normalize
+        flowWeights /= np.sum(flowWeights)
+
+        # and get thereal flow out of every state
+        outFlow = flowWeights * mutInFlux
+
+        # and now flow it into the right states            
+        for n_A in range(0,n+1):
+            srcIdx = self.moms.lookup_table[(0,n_A,0,n-n_A)]
+            # in state (0,n_A,0,n-n_A), n_A would flow into (1,n_A-1,0,n-n_A) and n-n_A would flow into (0,n_A,1,n-n_A-1)
+            if (n_A == 0):
+                dstIdx = self.moms.lookup_table[(0,n_A,1,n-n_A-1)]
+                mutNetFlow[srcIdx] -= outFlow[n_A]
+                mutNetFlow[dstIdx] += outFlow[n_A]
+            elif (n_A == n):
+                dstIdx = self.moms.lookup_table[(1,n_A-1,0,n-n_A)]
+                mutNetFlow[srcIdx] -= outFlow[n_A]
+                mutNetFlow[dstIdx] += outFlow[n_A]
+            else:
+                # this is the general more complicated one
+                derDstIdx = self.moms.lookup_table[(1,n_A-1,0,n-n_A)]
+                ancDstIdx = self.moms.lookup_table[(0,n_A,1,n-n_A-1)]
+                mutNetFlow[srcIdx] -= outFlow[n_A]
+                mutNetFlow[derDstIdx] += outFlow[n_A] * n_A/float(n)
+                mutNetFlow[ancDstIdx] += outFlow[n_A] * (n-n_A)/float(n)
+
+        return mutNetFlow
+
+
+
+    def comp_stationary_from_B_moms(self, marginal_moms, initial_freq=None):
+        '''Takes one-locus moments for neutral site and initial frequency of focal locus and generates two-locus moments
+        
+        Args:
+            marginal_moms: numpy array of sampling probabilities of one-locus biallelec population order should by greater than self.order
+            initial_freq: initial frequency of focal locus
+        
+        Returns:
+            Vector of moments of two-locus moments'''
+
+        # Initialize frequency to one allele if not specified
+        if initial_freq is None:
+            initial_freq = 1/(2*self.pop_size)
+        
+        # Initialize output, generate multinomial coefficients, and create dictionary of downsampling probabilities
+        out = np.zeros(self.moms.nmom)
+        mc = sympy.ntheory.multinomial.multinomial_coefficients(4, int(self.order))
+        mom_dict = self.comp_marginal_submoments(marginal_moms)
+
+        # Iterate through all moments computing sampling probabilities
+        for i, mom in enumerate(self.moms.moms):
+            contribution_A = 0
+            contribution_a = 0
+            if mom[2] == 0:
+                contribution_A = mc[mom] / binom(mom[1] + mom[3] + 1, mom[1] + 1) * initial_freq**mom[0] * mom_dict[(mom[1]+mom[3]+1, mom[1]+1)]
+            if mom[0] == 0:
+                contribution_a = mc[mom] / binom(mom[1] + mom[3] + 1, mom[1]) * initial_freq**mom[2] * mom_dict[(mom[1]+mom[3]+1, mom[1])]
+            out[i] = contribution_A + contribution_a
+            
+        return out
+
+    def comp_marginal_submoments(self, one_locus_moments):
+        '''Converts one locus moment vector into dictionary containing all downsampling probabilities
+
+        Args:
+            one_locus_moments: numpy array of sampling probabilities of one-locus biallelec population
+
+        Returns:
+            Dictionary of single locus moments for all order below the input order'''
+        max_order = len(one_locus_moments)-1
+        out_moms = {(max_order, i) :  freq for i, freq in enumerate(one_locus_moments)}
+        out_moms[(0, 0)] = 1
+
+        for i in range(1, max_order+1):
+            for j in range(0, max_order-i+1):
+                out_moms[(max_order-i, j)] = (j+1)/(max_order-i+1) * out_moms[(max_order-i+1, j+1)] + (max_order-i+1-j)/(max_order-i+1) * out_moms[(max_order-i+1, j)]
+        return out_moms
 
     # Generate matrix corresponding to evolution of drift
     def gen_dr_mat(self):
@@ -289,7 +555,12 @@ class TwoLocMomOde(object):
         dr = self.pop_size/current_pop_size  * self.dr_mat.dot(m)
 
         # Mutation
-        rmut = self.rmut_mat.dot(m)
+        if self.recMut:
+            # recurrent
+            mut = self.rmut_mat.dot(m)
+        else:
+            # PRF
+            mut = self.newPRFmut (m, self.theta[3])
 
         # Selection
         sel_in = self.sel_mat_in.dot(m_est)
@@ -301,14 +572,35 @@ class TwoLocMomOde(object):
         rec = rec_in+rec_out
 
         # Collect all terms
-        out = dr + sel_in + sel_out + rec + rmut
+        out = dr + sel_in + sel_out + rec + mut
+        
+        self.dmdt_evals += 1
         return out
 
 
-    def integrate_forward_RK45(self, gens, first_gen=0, smallest_step=10**-8, keep_traj = False, time_steps = None, num_points=1, min_step_size=10**-4):
+    def integrate_forward_RK45(self, gens, first_gen=0, smallest_step=10**-8, keep_traj = False, time_steps = None, num_points=1, min_step_size=10**-4, d_size = 0):
+        if d_size == 32:
+            self.d_size = np.float32
+        elif d_size == 128:
+            self.d_size = np.float128
+        else:
+            self.d_size = np.float64
         T = gens/(2*self.pop_size)
         t0 = first_gen/(2*self.pop_size)
         intobj = Integrator(lambda t, x: self.dmdt(t, x, restart_thresh=np.inf), clip=self.clip_ind, renorm=self.renorm)
+        self.start = self.start.astype(self.d_size)
+        self.ds_mat = self.ds_mat.astype(self.d_size)
+        self.dr_mat = self.dr_mat.astype(self.d_size)
+        if self.recMut:
+            self.rmut_mat = self.rmut_mat.astype(self.d_size)
+        self.sel_mat_in = self.sel_mat_in.astype(self.d_size)
+        self.sel_mat_out = self.sel_mat_out.astype(self.d_size)
+        self.rec_mat_out = self.rec_mat_out.astype(self.d_size)
+        self.rec_mat_in = self.rec_mat_in.astype(self.d_size)
+
+        self.dmdt_evals = 0
+
+
         if time_steps:
             time_steps = [time/(2*self.pop_size) for time in time_steps]
         if keep_traj:
