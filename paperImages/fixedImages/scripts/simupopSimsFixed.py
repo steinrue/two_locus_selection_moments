@@ -6,6 +6,7 @@ import numpy as np
 import pickle as pkl
 import json
 import click
+from hashlib import blake2b
 
 @click.command()
 @click.option('-n', help='Population Size of Simulation', type=int)
@@ -20,11 +21,12 @@ import click
 @click.option('-out_file', help='Filename to output to', type=str)
 def main(n, truen, reps, s, m, r, init, seed, demo, out_file):
 
+    seed = blake2b((out_file + str(seed)).encode(), digest_size=4)
     # Initialize parameters (making sure teo scale down modeled parameters to simulation size)
     s = s
     scale_ratio = truen/n
     init = json.loads(init)
-    sim.setRNG(seed=seed)
+    sim.setRNG(seed=int.from_bytes(seed.digest(), "big"))
     growth_rate = np.log(1.0025)
     s = s * scale_ratio
     m = m * scale_ratio
@@ -57,6 +59,18 @@ def main(n, truen, reps, s, m, r, init, seed, demo, out_file):
         bot_save = int(0)
         exp_save = int(0)
         full_save = int(.1*n)
+    elif demo == 'constant2':
+        model = 200
+        gens_sim = 300
+        bot_save = int(0)
+        exp_save = int(0)
+        full_save = int(gens_sim)
+    elif demo == 'constant10':
+        model =1000
+        gens_sim = 600
+        bot_save = int(0)
+        exp_save = int(0)
+        full_save = int(gens_sim)
 
     
     

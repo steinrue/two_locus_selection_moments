@@ -8,6 +8,7 @@ from momlink.helper_funcs import Moments, MomentReducer, MomentMarginalizer
 import pickle as pkl
 import json
 import click
+import time
 
 
 @click.command()
@@ -22,7 +23,8 @@ import click
 @click.option('-init', help='mutation rate', type=str)
 @click.option('-out_file', help='Filename to output LD to', type=str)
 @click.option('-min_step', help='Minimum step size of integrator', type=float)
-def main(order, interp_type, renorm, parsimonious, demog, m, s, r, init, out_file, min_step):
+@click.option('-d_size', help='Size of floats', type=int, default=0)
+def main(order, interp_type, renorm, parsimonious, demog, m, s, r, init, out_file, min_step, d_size):
 
     # Convert initial haplotype frequencies to list
     init = json.loads(init)
@@ -40,10 +42,20 @@ def main(order, interp_type, renorm, parsimonious, demog, m, s, r, init, out_fil
         demog_fn = 'demographies/expDem.txt'
         save_points = 11
         gens = 1000
+    elif demog == 'constant2':
+        demog_fn = 'demographies/constDem2000.txt'
+        save_points = 101
+        gens = 3000
+    elif demog == 'constant10':
+        demog_fn = 'demographies/constDem10000.txt'
+        save_points = 101
+        gens = 6000
     demo = dem.Demography(fn=demog_fn)
 
     # Initialize ODE
+    inst_start = time.time()
     ode_inst = ode.TwoLocMomOde(order, interp_type=interp_type, renorm=renorm, clip_ind=True, parsimonious=parsimonious)
+    inst_time = time.time() - inst_start
     params = {
         'demog' : demo,
         'lam' : 1, 
@@ -55,10 +67,14 @@ def main(order, interp_type, renorm, parsimonious, demog, m, s, r, init, out_fil
     
     # Sometimes the ODE will fail to integrate, which case just save 'error'
     try:
-
+        
         # Set parameters and integrate ODE
+        param_start = time.time()
         ode_inst.set_parameters(**params)
-        [times, moment_trajectory] = ode_inst.integrate_forward_RK45(gens, num_points=save_points, keep_traj=True, min_step_size=min_step)
+        param_time = time.time() - param_start
+        integrate_start = time.time()
+        [times, moment_trajectory] = ode_inst.integrate_forward_RK45(gens, num_points=save_points, keep_traj=True, min_step_size=min_step, d_size=d_size)
+        integrate_time = time.time() - integrate_start
     except:
         out_dict = {}
         out_dict['data'] = 'Error'
@@ -85,9 +101,11 @@ def main(order, interp_type, renorm, parsimonious, demog, m, s, r, init, out_fil
     ld_moms = [[1, 0, 0, 1], [0, 1, 1, 0]]
     lds = ord2_freqs[moms_two.lookup(tuple(ld_moms[0])), :]/2 - ord2_freqs[moms_two.lookup(tuple(ld_moms[1])), :]/2 
     out_dict = {}
-    out_dict['data'] = {'hap': hap_freqs, 'ld' : lds, 'liks' : moment_trajectory, 'times' : times, 'demog' :  demog}
+    out_dict['data'] = {'hap': hap_freqs, 'ld' : lds, 'liks' : moment_trajectory, 'times' : times, 'demog' :  demog,
+                        'inst_time' :  inst_time, 'param_time' :  param_time, 'integrate_time' : integrate_time, 
+                        'dmdt_evals' : ode_inst.dmdt_evals}
     out_dict['params'] = {'s' : s, 'r' :r , 'init' : init, 'min_step' : min_step, 'order' : order,
-                            'it': interp_type, 'rn' : renorm, 'par' : parsimonious, 'demog' :  demog}
+                            'it': interp_type, 'rn' : renorm, 'par' : parsimonious, 'demog' :  demog, 'd_size' :  d_size}
     pkl.dump(out_dict,  open( out_file, "wb" ) )
     
 if __name__ == '__main__':

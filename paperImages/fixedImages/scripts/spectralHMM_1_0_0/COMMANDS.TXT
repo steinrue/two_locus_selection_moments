@@ -1,0 +1,3 @@
+python runSpectralHMM.py --inputFile examples/oneSample --mutToBenef 1e-6 --mutFromBenef 1e-6 --effPopSize 10000 --yearsPerGen 1 --initFrequency 0.1 --initTime 0.00001 --hetF 0 --homF 0 --precision 40 --matrixCutoff 150 --maxM 140 --maxN 130
+
+python runSpectralHMM.py --inputFile examples/oneSample --mutToBenef 1e-6 --mutFromBenef 1e-6 --effPopSize 10000 --yearsPerGen 1 --mutSelBalance --initTime 0.00001 --hetF 0 --homF 0 --precision 40 --matrixCutoff 150 --maxM 140 --maxN 130

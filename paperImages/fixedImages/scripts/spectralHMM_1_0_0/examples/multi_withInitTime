@@ -1,0 +1,9 @@
+# initial_time; (sampling_time1, samples_size1, num_derived_alleles1); (sampling_time2, samples_size2, num_derived_alleles2); (sampling_time3, samples_size3, num_derived_alleles3) ...
+0; (4000.00, 3, 0); (12000.00, 2, 1)
+0; (4000.00, 3, 0); (12000.00, 2, 2)
+0; (4000.00, 3, 1); (12000.00, 2, 1)
+0; (4000.00, 3, 1); (12000.00, 2, 2)
+0; (4000.00, 3, 2); (12000.00, 2, 1)
+0; (4000.00, 3, 2); (12000.00, 2, 2)
+0; (4000.00, 3, 3); (12000.00, 2, 1)
+0; (4000.00, 3, 3); (12000.00, 2, 2)
