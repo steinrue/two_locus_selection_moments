@@ -18,31 +18,303 @@ class MomentInterpolator(object):
         self.moms_new = moms_new
         self.fmoms = np.array(self.moms.moms, dtype=float)/self.order
         self.fmomsp1 = np.array(self.moms_new.moms, dtype=float)/self.new_order
-        self.vtx, self.wts = self.interp_weights()
         self.clip_ind = clip_ind
         self.interp_type = interp_type
         self.renorm = renorm
         self.parsimonious = parsimonious
         self.ds_mat = ds_mat
-        if self.interp_type == 'project' or self.parsimonious:
-            self.gen_ls_solver()
-        if self.interp_type == 'jackknife':
+        if self.interp_type == 'loglin' or self.interp_type == 'lin':
+            self.vtx, self.wts = self.interp_weights()
+        elif self.interp_type == 'jackknife':
             self.gen_jackknife_matrix()
-        if self.interp_type == 'jackknife-constrained':
+        elif self.interp_type == 'jackknife-constrained':
             self.gen_jackknife_matrix_constrained()
+        elif self.interp_type == 'loglinBound':
+            self.gen_boundary_interpolator()
+        else:
+            assert (False), "unknown interpolation type"
         
 
-    def gen_ls_solver(self):
-        # self.ds_mat_fact = ssl.factorized(self.ds_mat)
-        pass
+    @staticmethod
+    def makeNonZeroConfigs (slots, daSum):
+        daConfigs = []
+        size = daSum
+        for indices in itertools.combinations(range(1,size), slots - 1):
+            indices = (0,) + indices + (size,)
+            daConfigs.append (tuple(np.diff(indices)))
+        return daConfigs
+
+
+    @staticmethod
+    def findFullRankMatrix (center, initHood, neighbors, tree):
+        # try to requery the tree to get more neighbors
+        # unfortunately, the best way with the interface seems to be to just do a new search
+        dim = len(center)
+        currHood = initHood
+        currRank = 0
+        # first find a large enough set
+        while (currRank < dim):
+            currNeighbors = tree.query ([center], k=currHood, return_distance=False)[0]
+            currRank = np.linalg.matrix_rank (np.transpose (neighbors[currNeighbors]))
+            currHood *= 2
+        # and then extract a minimal set that gives full rank
+        for j in itertools.combinations (currNeighbors, dim):
+            lastNeighbors = list(j)
+            A = np.transpose (neighbors[lastNeighbors])
+            lastRank = np.linalg.matrix_rank (A)
+            # only keep if rank improved
+            if (lastRank == dim):
+                # those neighbors work
+                break
+        return A  
+
+
+    @staticmethod
+    def fullConfig (K, nonZeroIdxs, compressedConfig):
+        realConfig = np.zeros (K, dtype=int)
+        for (i, j) in enumerate (list (nonZeroIdxs)):
+            realConfig[j] = compressedConfig[i]
+        return tuple(realConfig)
+
+
+    def gen_boundary_interpolator(self):
+        # number of genetic types
+        K = 4
+
+        # to clip the logit
+        self.LOGITCLIP = 300
+
+        # this should get the right levels
+        self.daLevels = [x for x in range(K)]
+
+        # compute some normalization factors
+        self.normFactor = {}
+
+        for level in self.daLevels:
+            self.normFactor[level] = scipy.special.binom (self.order - 1, K - 1 - level) / scipy.special.binom (self.new_order - 1, K - 1 - level)
+
+        # get a dict for the weightmatrices at different levels
+        self.weightMatrices = {}
+
+        # and some masks
+        self.tallNonZeroMasks = {}
+
+        # I think that we need this as well
+        self.smallNonZeroMasks = {}
+
+        daSum = 0
+        daHistSum = 0
+        for level in self.daLevels:
+
+            # this is the matrix for inter / extra-polation that we have to fill on this level
+            thisWeightMatrix = scipy.sparse.lil_matrix ((len(self.moms_new.moms), len(self.moms.moms)))
+
+            # number of elements in config on this level
+            numElements = K - level
+
+            smallNonZeroConfigs = self.makeNonZeroConfigs (numElements, self.order)
+            tallNonZeroConfigs = self.makeNonZeroConfigs (numElements, self.new_order)
+
+            numEntries = len(tallNonZeroConfigs)
+            numZeroPositions = scipy.special.binom (K, level)
+            daSum += numZeroPositions * numEntries
+
+            # things add up, so now start getting the actual indices
+            # what are the non-zero positions on this level?
+            nonZeroPos = [i for i in itertools.combinations (range(K), K-level)]
+
+            # to do the neighborhoods and weights, we need the configurations as frequencies
+            # have the same order as configs, so everything good
+            smallNonZeroFreqs = np.array (smallNonZeroConfigs, dtype=float)/self.order
+            tallNonZeroFreqs = np.array (tallNonZeroConfigs, dtype=float)/self.new_order
+
+            # set up the BallTree with the small ones on this level to find
+            tree = sklearn.neighbors.BallTree (smallNonZeroFreqs)
+            # and find stuff for the tall ones (number depends on level)
+            ind = tree.query (tallNonZeroFreqs, k=numElements, return_distance=False)
+
+            daRanks = []
+
+            # and go through what you find
+            for tallIdx, smallIdxs in enumerate(ind):
+
+                # I think that we can do the weights in the recuded vectors
+                A = np.transpose (smallNonZeroFreqs[smallIdxs])
+                rankA = np.linalg.matrix_rank (A)
+                daRanks.append (rankA)
+                b = tallNonZeroFreqs[tallIdx]
+                assert (A.shape[0] == K - level)
+                assert (A.shape[1] == K - level)
+                assert (len(b) == K - level)
+                
+                # rank the matrix
+                if (rankA == A.shape[0]):
+                    # full rank, all good for linalg.solve
+                    pass
+                elif (rankA == A.shape[0] - 1):
+                    # one rank off, needs work
+                    A = self.findFullRankMatrix (tallNonZeroFreqs[tallIdx], 2*numElements, smallNonZeroFreqs, tree)
+                    assert (A.shape[0] == K - level)
+                    assert (A.shape[1] == K - level)
+
+                    assert (np.linalg.matrix_rank (A) == K - level)
+                    # now all good for linalg solve
+                else:
+                    # should never be more than one rank off
+                    assert (False), "Rank of interpolation matrix 2 or more off full rank!"
+
+                # get the weights from linear algebra
+                theseWeights = np.linalg.solve (A, b)
+                assert (not np.any (np.isnan (theseWeights)))
+
+                # the current indices are not in the full moment vectors
+                # so find them in the full moment vectors and put the weights where we want them
+                # this one kinda iterates over boundaries
+                for (nonIdx, non) in enumerate (nonZeroPos):
+                    fullTallConfig = self.fullConfig (K, non, tallNonZeroConfigs[tallIdx])
+                    fullTallIdx = self.moms_new.lookup (fullTallConfig)
+
+                    # go through the small indices that we need here
+                    for (dI, sI) in enumerate (smallIdxs):
+                        fullSmallConfig = self.fullConfig (K, non, smallNonZeroConfigs[sI])
+                        fullSmallIdx = self.moms.lookup (fullSmallConfig)
+
+                        # put weights for inter / extra-polation into weight matrix
+                        thisWeightMatrix[fullTallIdx, fullSmallIdx] = theseWeights[dI]
+                                    
+            # get a histogram of the ranks
+            maxRank = max(daRanks)
+            daHist = np.histogram (daRanks, bins=np.arange(-0.5,maxRank+1.5))
+            daHistSum += numZeroPositions * np.sum(daHist[0])
+
+            # and store the weightMatrix for this level
+            self.weightMatrices[level] = thisWeightMatrix.tocsr()
+
+            # let's make the nonZeroMasks here, cause it's convenient
+            nonZeroIdxs = self.weightMatrices[level].nonzero()
+            # first the rows
+            nonZeroRows = np.unique(nonZeroIdxs[0])
+            nonZeroRowsMask = np.zeros (len(self.moms_new.moms), dtype=bool)
+            nonZeroRowsMask[nonZeroRows] = True
+            self.tallNonZeroMasks[level] = nonZeroRowsMask
+            # then the columns
+            nonZeroCols = np.unique(nonZeroIdxs[1])
+            nonZeroColsMask = np.zeros (len(self.moms.moms), dtype=bool)
+            nonZeroColsMask[nonZeroCols] = True
+            self.smallNonZeroMasks[level] = nonZeroColsMask
+
+
+    ### this one takes a long time
+    def isConsistentLoglinBound (self):
+
+        result = True
+
+        # check some consistency
+        daLevels = sorted(self.normFactor.keys())
+
+        result &= (daLevels == sorted(self.weightMatrices.keys()))
+        result &= (daLevels == sorted(self.tallNonZeroMasks.keys()))
+        result &= (daLevels == sorted(self.smallNonZeroMasks.keys()))
+
+        tallDim = self.weightMatrices[daLevels[0]].shape[0]
+        smallDim = self.weightMatrices[daLevels[0]].shape[1]
+
+        for level in daLevels:
+            result &= (self.weightMatrices[level].shape[0] == tallDim)
+            result &= (len(self.tallNonZeroMasks[level]) == tallDim)
+            result &= (len(self.smallNonZeroMasks[level]) == smallDim)
+
+            # make sure the weights look good
+            aVariable = self.weightMatrices[level].toarray()
+            result &= (all (np.isclose (np.sum(aVariable[self.tallNonZeroMasks[level]],axis=1), 1)))
+            result &= (all (np.isclose (np.sum(aVariable[~self.tallNonZeroMasks[level]],axis=1), 0)))
+            # for the small ones we can do something with columns
+            # those should just have something in them
+            result &= (all (np.sum (np.abs(aVariable[:,self.smallNonZeroMasks[level]]), axis=0) > 0))
+            # those should all be zero
+            result &= (all ((np.isclose (aVariable[:,~self.smallNonZeroMasks[level]], 0)).flatten()))
+
+        # if all good we still true
+        return result
+
+
+    ### do the actual interpolation
+    def loglinBoundInterp (self, m):
+        # so now that we have factors and interpolation matrices for each level, what do?
+        # get the small moments
+        smallMom = m
+        assert (len(m) == len(self.smallNonZeroMasks[0]))
+
+        # and go through the levels to interpolate each individually
+        daLevels = sorted(self.normFactor.keys())
+
+        # might actually be good to first do the interpolation on every level seperately, and then see about combining
+        interpolates = {}
+
+        smallMasses = np.zeros (len(daLevels))
+        tallMasses = np.zeros (len(daLevels))
+
+        for level in daLevels:
+
+            # this could maybe be more efficient, but ok for now
+            smallCopy = smallMom.copy()
+
+            # do some weighing
+            smallMasses[level] = np.sum (smallCopy[self.smallNonZeroMasks[level]])
+
+            # do weightin on this level
+            smallCopy *= self.normFactor[level]
+
+            # logit
+            smallLog = scipy.special.logit (smallCopy)
+
+            # I guess we need some clipping here
+            # it's not really too nice, but what do zeros mean in the logit interpolation?
+            smallLog = np.clip (smallLog, -self.LOGITCLIP, self.LOGITCLIP)
+
+            # and inter/extra-polating?
+            tallLog = self.weightMatrices[level].dot (smallLog)
+
+            # so, set the ones that shouldn't have something to not having something
+            tallLog[~self.tallNonZeroMasks[level]] = -float("inf")
+
+            # expit
+            interpolates[level] = scipy.special.expit (tallLog)
+
+            tallMasses[level] = np.sum (interpolates[level])
+
+        # now how to combine the interpolations on the different levels?
+        # I think the way to combine it is to keep some aspect of the shares in smallMasses for tallMasses
+
+        smallLeftSums = np.cumsum (smallMasses[::-1])[::-1]
+
+        massToDistribute = 1
+
+        # and now combine the interpolates with the right factors
+        result = np.zeros (len(interpolates[0]))
+
+        for level in daLevels:
+            # weigh all that are left to have sum to massToDistribute, weigh according to their fraction of remaining mass on small level
+            # on level 0, this should just be 1
+            weightFactor = massToDistribute / smallLeftSums[level]
+
+            # now do results on this
+            result += weightFactor * interpolates[level]
+
+            # but we ate up some mass, so adjust what we have left to distribute
+            massToDistribute = 1 - np.sum (result)
+
+        return result
+
 
     # Function to compute the jacknife. I.e. the approximation of M_{n+1} in terms of M_n
     def interp(self, m):
         if self.clip_ind:
             m = np.clip(m, 0, 1)
+
         if self.interp_type == 'loglin':
             m = np.clip(m, 0, 1)
-            logitm = np.clip(scipy.special.logit(m * ((self.order+1) / (self.order+2))**3), -100, 100)
+            logitm = np.clip(scipy.special.logit(m * ((self.order+1) / (self.order+2))**3), -300, 300)
             logitmp1 = np.einsum('nj,nj->n', np.take(logitm, self.vtx), self.wts)
             out = scipy.special.expit(logitmp1 )* ((self.order+2) /(self.order+1) )**3
         elif self.interp_type == 'lin':
@@ -54,8 +326,14 @@ class MomentInterpolator(object):
             out = ssl.lsqr(self.ds_mat, m)[0]
         elif self.interp_type == 'jackknife':
             out= self.jk_mat.dot(m)
-        elif self.interp_type =='jackknife-constrained':
+        elif self.interp_type == 'jackknife-constrained':
             out= self.jk_mat.dot(m)
+        elif self.interp_type == 'loglinBound':
+            m = np.clip(m, 0, 1)
+            out = self.loglinBoundInterp (m)
+        else:
+            assert (False), "unknown interpolation type"
+
         if self.clip_ind:
             out = np.clip(out, 0, 1)
         if self.renorm:
@@ -151,7 +429,7 @@ class MomentInterpolator(object):
                 for k, mom_idx in enumerate(idx):
                     A[j, k] = self.compute_jackknife_moment(self.moms.moms[mom_idx], a)
             # import pdb; pdb.set_trace()
-            coefs = scipy.linalg.lstsq(A, b)[0]
+            coefs = scipy.linalg.lstsq(A, b)[0] 
             for ell, mom_idx in enumerate(idx):
                 out_mat[i, mom_idx] = coefs[ell]
         self.jk_mat = out_mat.tocsr()
@@ -171,8 +449,6 @@ class MomentInterpolator(object):
         n2 = mom[1]
         n3 = mom[2]
         n4 = mom[3]
-
-
         out = (((5*a2 + 5*a3 + 2*a4 + 2*a5 + 2*a6 + a7 + a8 + a9 + a2*n1 + a3*n1 + 
                     3*a4*n1 + a7*n1 + a8*n1 + a4*n1**2 + 6*a2*n2 + a3*n2 + 3*a5*n2 + 
                     a7*n2 + a9*n2 + a2*n1*n2 + a7*n1*n2 + a2*n2**2 + a5*n2**2 + 
@@ -181,6 +457,7 @@ class MomentInterpolator(object):
                     a6*n3**2 + (a2 + a3 + a2*n2 + a3*n3)*n4 + 
                     a1*(1 + n1)*(5 + n1 + n2 + n3 + n4) + 
                     a0*(4 + n1 + n2 + n3 + n4)*(5 + n1 + n2 + n3 + n4))
+                    # *gamma(1 + n1)*gamma(1 + n2)*gamma(1 + n3)*gamma(1 + n4))/
                     * gamma(1 + n1+ n2 + n3 + n4)) /
                         gamma(6 + n1 + n2 + n3 + n4))
         return out
