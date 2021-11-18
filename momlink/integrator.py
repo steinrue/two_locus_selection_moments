@@ -19,7 +19,7 @@ class Integrator(object):
         last_save = 0
         if not time_points:
             if num_points == 1:
-                time_points = T
+                time_points = [T]
             else:
                 time_points = list(np.linspace(t0, T, num_points))
         next_save = 0
@@ -36,7 +36,7 @@ class Integrator(object):
                 if self.renorm:
                     yn /= np.sum(yn)
                 [ynp1_1, ynp1_2] = self.rkstep(h, t, yn)
-                R = 1/h*np.linalg.norm(ynp1_1-ynp1_2)
+                R = np.linalg.norm(ynp1_1-ynp1_2)
                 if R > 0:
                     dlt = .84*(eps/R)**(1/4)
                 else:
