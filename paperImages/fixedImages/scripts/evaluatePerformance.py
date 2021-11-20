@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import sys
 # sys.path.append ("/Users/efriedlander/Dropbox/Research/twoLocusDiffusion")
-sys.path.append ("/gpfs/data/steinruecken-lab/efriedlander-folder/momentsProject/twoLocusDiffusion")
+sys.path.append ("/gpfs/data/steinruecken-lab/efriedlander-folder/momentsProject/publishedCode/two_locus_selection_moments/")
 from momlink.helper_funcs import Moments, MomentInterpolator, MomentReducer
 import click
 import pickle as pkl

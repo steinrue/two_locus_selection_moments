@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 # sys.path.append ("/Users/efriedlander/Dropbox/Research/twoLocusDiffusion")
-sys.path.append ("/gpfs/data/steinruecken-lab/efriedlander-folder/momentsProject/twoLocusDiffusion")
+sys.path.append ("/gpfs/data/steinruecken-lab/efriedlander-folder/momentsProject/publishedCode/two_locus_selection_moments/")
 import momlink.ode as ode
 import momlink.demography as dem
 from momlink.helper_funcs import Moments, MomentReducer, MomentMarginalizer
