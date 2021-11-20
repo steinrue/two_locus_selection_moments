@@ -11,7 +11,6 @@ import random
 seeed=4711
 random.seed(seeed)
 
-# Set parameters
 pop_size = 10000
 sim_size=1000
 bot_gen = 6000
@@ -23,8 +22,6 @@ reps = 1000
 num_loci = 41
 m=[1.25*10**-8]
 order = 31
-
-# Generate demographies
 full_dem = 'demographies/constBotExpDem.txt'
 with open(full_dem, 'w+') as dem_file:
     dem_file.writelines('setSize, 0, {}'.format(pop_size))
@@ -47,33 +44,33 @@ with open(exp_dem, 'w+') as dem_file:
     dem_file.write('\n')
     dem_file.write('expGrow, {}, {}'.format(0, growth_rate))
 
-# Define wildcards
 demographies = ['full', 'bottle', 'growth']
 sigs = [1, 50, 100]
 s = [sig/(4*pop_size) for sig in sigs]
 init = [.01, .03, .05]
-windows = [10**5]
+windows = [10**6, 10**6//2, 10**5]
 r = [10**-8]
+it = ['loglin']
+renorm = ['renorm']
+clip_ind = ['clip']
+parsimonious = ['parsimonious-no']
 min_step = [10**-4]
-
-# Define output files
 prefix='scripts/'
 sims_out = 'data/simuPopStationary_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}.p'
-ode_out = 'ode_output/odeOutput_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.p'
-hz_fn = 'images/hzPlot_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf'
-d2_fn = 'images/d2Plot_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf'
-hzgrid_fn = 'images/hzGridPlot_m_{m}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf'
-d2grid_fn = 'images/d2GridPlot_m_{m}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_loglin_renorm_parsimonious-no.pdf'
-
+ode_out = 'ode_output/odeOutput_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_{it}_{renorm}_{clip_ind}_{parsimonious}.p'
+hz_fn = 'images/hzPlot_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_{it}_{renorm}_{clip_ind}_{parsimonious}.pdf'
+d2_fn = 'images/d2Plot_dem_{demographies}_m_{m}_s_{s}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_{it}_{renorm}_{clip_ind}_{parsimonious}.pdf'
+hzgrid_fn = 'images/hzGridPlot_m_{m}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_{it}_{renorm}_{clip_ind}_{parsimonious}.pdf'
+d2grid_fn = 'images/d2GridPlot_m_{m}_r_{r}_window_{windows}_i_{init}_minstep_{min_step}_{it}_{renorm}_{clip_ind}_{parsimonious}.pdf'
 
 rule all:
     input: 
         expand(sims_out, s=s, r=r, windows=windows, init=init, m=m, demographies=demographies),
-        expand(ode_out, s=s, r=r, windows=windows, init=init, min_step=min_step, m=m, demographies=demographies),
-        expand(hzgrid_fn, r=r, windows=windows, init=init, min_step=min_step, m=m),
-        expand(d2grid_fn, r=r, windows=windows, init=init, min_step=min_step, m=m)
+        expand(ode_out, s=s, r=r, windows=windows, init=init, min_step=min_step, it=it, renorm=renorm, clip_ind=clip_ind, parsimonious=parsimonious, m=m, demographies=demographies),
+        expand(hzgrid_fn, r=r, windows=windows, init=init, min_step=min_step, it=it, renorm=renorm, clip_ind=clip_ind, parsimonious=parsimonious, m=m),
+        expand(d2grid_fn, r=r, windows=windows, init=init, min_step=min_step, it=it, renorm=renorm, clip_ind=clip_ind, parsimonious=parsimonious, m=m)
         
-# Run simupop simulations       
+        
 rule gen_sims:
     params:
         N = str(pop_size),
@@ -91,7 +88,6 @@ rule gen_sims:
     run:
         shell('module load miniconda3/4.3.21; python3 ' + prefix + '''simupopSimsStationary.py -n {params.sim_size} -truen {params.N} -num_loci {params.num_loci} -reps {params.reps} -s {wildcards.s} -m {wildcards.m} -r {wildcards.r} -init {wildcards.init}  -window {wildcards.windows} -seed {params.seed} -demo {wildcards.demographies} -out_file {output.out_file}''') 
 
-# Get output from moment odes
 rule gen_odes:
     params: 
         order = str(order),
@@ -100,16 +96,15 @@ rule gen_odes:
     output: 
         out_file = ode_out
     run:
-        shell('python3 ' + prefix + '''odeStationary.py -ord {params.order} -demog {wildcards.demographies} -m {wildcards.m} -s {wildcards.s} -r {wildcards.r} -init {wildcards.init} -out_file {output.out_file} -min_step {wildcards.min_step} -num_loci {params.num_loci} -window {wildcards.windows}
+        shell('python3 ' + prefix + '''odeStationary.py -ord {params.order} -it {wildcards.it} -{wildcards.renorm} -{wildcards.clip_ind} -{wildcards.parsimonious} -demog {wildcards.demographies} -m {wildcards.m} -s {wildcards.s} -r {wildcards.r} -init {wildcards.init} -out_file {output.out_file} -min_step {wildcards.min_step} -num_loci {params.num_loci} -window {wildcards.windows}
         ''')
 
-# Generate plots
 rule gen_plots:
     params:
         s_vals = str(s).replace(' ', '')
     input: 
         expand('data/simuPopStationary_dem_{demographies}_m_{{m}}_s_{s}_r_{{r}}_window_{{windows}}_i_{{init}}.p', demographies=demographies, s=s),
-        expand('ode_output/odeOutput_dem_{demographies}_m_{{m}}_s_{s}_r_{{r}}_window_{{windows}}_i_{{init}}_minstep_{{min_step}}_loglin_renorm_parsimonious-no.p', demographies=demographies, s=s)
+        expand('ode_output/odeOutput_dem_{demographies}_m_{{m}}_s_{s}_r_{{r}}_window_{{windows}}_i_{{init}}_minstep_{{min_step}}_{{it}}_{{renorm}}_{{clip_ind}}_{{parsimonious}}.p', demographies=demographies, s=s)
     output:
         hzgrid_fn = hzgrid_fn,
         d2grid_fn = d2grid_fn

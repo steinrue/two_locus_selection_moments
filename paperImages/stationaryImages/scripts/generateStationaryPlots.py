@@ -5,9 +5,12 @@ import sys
 # sys.path.append ("/Users/efriedlander/Dropbox/Research/twoLocusDiffusion")
 import pickle as pkl
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 import matplotlib as mpl
+# import matplotlib.ticker as mtick
 import click
 import json
+
 
 
 @click.command()
@@ -44,15 +47,14 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
 
     # Define important file names
     sim_temp = 'data/simuPopStationary_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}.p'.format(m=m, r=r, window=window, init=init)
-    ode_temp = 'ode_output/odeOutput_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_parsimonious-no.p'.format(m=m, r=r, window=window, init=init)
-    hz_temp = 'images/hzPlot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
-    d2_temp = 'images/d2Plot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
+    ode_temp = 'ode_output/odeOutput_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.p'.format(m=m, r=r, window=window, init=init)
+    hz_temp = 'images/hzPlot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
+    d2_temp = 'images/d2Plot_dem_{{demographies}}_m_{m}_s_{{s}}_r_{r}_window_{window}_i_{init}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, window=window, init=init)
 
     ndems = 3
     ns = len(s_vals)
     demographies = ['full', 'bottle', 'growth']
     demo_symbol = ['$\eta_1$', '$\eta_2$', '$\eta_3$']
-
     fig2, axes2 = plt.subplots(ns, ndems, figsize=(6.4*3, 4.8*3), sharex='col', sharey='col')
     fig3, axes3 = plt.subplots(ns, ndems, figsize=(6.4*3, 4.8*3), sharex='col', sharey='col')
     lgds2 = []
@@ -71,6 +73,7 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
             simupop_data = simupop['data']
             simupop_param = simupop['params']
             demog = ode_params['demog']
+            
 
             if demo == 'full':
                 recs = ode_params['recs']
@@ -102,25 +105,35 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
             ax1 = axes2[i, j]
             ax1.ticklabel_format(axis='y', style='sci')
             ax1.yaxis.major.formatter._useMathText = True
+            fig1, axes1 = plt.subplots(1, 1)
             if demog == 'full':
                 for l, k in enumerate([0, 3, 6, 9, 10]):
                     add_hz_to_plot(ax1, colors[l], k*100, k, k*1000)
+                    add_hz_to_plot(axes1, colors[l], k*100, k, k*1000)
             elif demog == 'bottle':
                 for l, k in enumerate([0, 2, 3, 4]):
                     add_hz_to_plot(ax1, colors_5[l], k*100, k, k*1000+6000)
+                    add_hz_to_plot(axes1, colors_5[l], k*100, k, k*1000+6000)
             elif demog == 'growth':
                 for l, k in enumerate([0, 1, 2]):
                     add_hz_to_plot(ax1, colors_3[l], k*50, k, k*500+9000)
+                    add_hz_to_plot(axes1, colors_3[l], k*50, k, k*500+9000)
+            
             if j == 0:
                 ax1.set_ylabel('Exp. Heterozygosity')
+            axes1.set_ylabel('Exp. Heterozygosity')
             ax1.set_title('$\sigma$ = '+ str(s*4*10000) + ' and time of introduction ' + demo_symbol[j])
+            axes1.set_title('$\sigma$ = '+ str(s*4*10000) + ' and time of introduction ' + demo_symbol[j])
+            axes1.set_xlabel('Distance from Focal Local')
+            fig1.savefig(hz_temp.format(demographies=demo, s=s), format='pdf', bbox_extra_artists=tuple(lgds2))
+            plt.close(fig1)
+
             
 
             ld_sim = simupop_data['ld']
             def add_d2_to_plot(ax, plot_color, sim_gen, ode_gen, true_gen):
                 d2_slice = [time_slice[ode_gen] for time_slice in ode_data['d2']]
                 d2_ode = d2_slice[-1:0:-1] + d2_slice
-                # import pdb; pdb.set_trace()
                 ld_freqs = np.array([[loc_gen[sim_gen] for loc_gen in loc] for loc in ld_sim])
                 d2_freqs = ld_freqs**2
                 d2_means = np.mean(d2_freqs, axis=1)
@@ -130,24 +143,38 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
                 ax.plot(recs_list, d2_ode, color=plot_color, label=str(10000-true_gen) + ' generations')
                 ax.plot(recs_list, d2_means, color=plot_color, linestyle='dotted')
                 ax.fill_between(recs_list, d2_means-1.96*d2_sd, d2_means+1.96*d2_sd, color=plot_color, alpha=.2)
-                ax.ticklabel_format(axis='y', style='sci', scilimits=(0,0))
+                # ax.ticklabel_format(axis='y', useOffset=False) 
+                # ax.yaxis.set_major_formatter(mtick.ScalarFormatter('%.0e'))
+                
 
             ax1 = axes3[i, j]
+            fig1, axes1 = plt.subplots(1, 1)
             if demog == 'full':
                 for l, k in enumerate([0, 3, 6, 9, 10]):
                     add_d2_to_plot(ax1, colors[l], k*100, k, k*1000)
+                    add_d2_to_plot(axes1, colors[l], k*100, k, k*1000)
             elif demog == 'bottle':
                 for l, k in enumerate([0, 2, 3, 4]):
                     add_d2_to_plot(ax1, colors_5[l], k*100, k, k*1000+6000)
+                    add_d2_to_plot(axes1, colors_5[l], k*100, k, k*1000+6000)
             elif demog == 'growth':
                 for l, k in enumerate([0, 1, 2]):
-                    add_d2_to_plot(ax1, colors_3[l], k*50, k, k*500+9000)
+                    add_d2_to_plot(ax1, colors_3[l], k*50, l, l*500+9000)
+                    add_d2_to_plot(axes1, colors_3[l], k*50, l, l*500+9000)
 
-            # ax1.set_xlabel('Distance from Focal Local')
             if j == 0:
                 ax1.set_ylabel('Expected $D^2$')
+            axes1.set_ylabel('Expected $D^2$')
             ax1.set_title('$\sigma$ = '+ str(s*4*10000) + ' and time of introduction ' + demo_symbol[j])
+            axes1.set_title('$\sigma$ = '+ str(s*4*10000) + ' and time of introduction ' + demo_symbol[j])
+            axes1.set_xlabel('Distance from Focal Local')
+            axes1.set_ylim(0, 5*10**-3)
+            ax1.set_ylim(0, 5*10**-3)
+            # axes1.yaxis.set_major_formatter(my_ScalarFormatter())
+            # axes1.ticklabel_format(axis='y', style='sci')
             
+            fig1.savefig(d2_temp.format(demographies=demo, s=s), format='pdf', bbox_extra_artists=tuple(lgds2))
+            plt.close(fig1)
             if i == 2:
                 axes2[i, j].set_xlabel('Distance from Selected Locus ($\\rho$)')
                 axes3[i, j].set_xlabel('Distance from Selected Locus ($\\rho$)')
@@ -155,8 +182,8 @@ def main(hzgrid_fn, d2grid_fn, m, r, window, init, s_vals):
                 lgds3.append(axes3[i, j].legend(title='Generations before present', loc='upper center', bbox_to_anchor=(0.5, -0.2), shadow=False, ncol=1))
     
     
-    fig2.savefig(hzgrid_fn, format='pdf', bbox_extra_artists=tuple(lgds2), bbox_inches='tight')
-    fig3.savefig(d2grid_fn, format='pdf', bbox_extra_artists=tuple(lgds3), bbox_inches='tight')
+    fig2.savefig(hzgrid_fn, format='pdf', bbox_extra_artists=tuple(lgds2))
+    fig3.savefig(d2grid_fn, format='pdf', bbox_extra_artists=tuple(lgds3))
 
 if __name__ == '__main__':
     main()

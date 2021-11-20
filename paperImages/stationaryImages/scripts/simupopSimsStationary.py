@@ -8,15 +8,15 @@ import json
 import click
 
 @click.command()
-@click.option('-n', help='Population Size of simulation', type=int)
-@click.option('-truen', help='Population Size', type=int)
-@click.option('-num_loci', help='Number of loci to simulate', type=int)
+@click.option('-n', help='Population Size', type=int)
+@click.option('-truen', help='Population Size of simulation', type=int)
+@click.option('-num_loci', help='Population Size of simulation', type=int)
 @click.option('-reps', help='Number of repetitions', type=int)
 @click.option('-s', help='selection coefficient', type=float)
 @click.option('-m', help='mutation rate', type=float)
 @click.option('-r', help='recombination rate', type=float)
 @click.option('-init', help='mutation rate', type=str)
-@click.option('-window', help='Size of window to model', type=int)
+@click.option('-window', help='size of window to model', type=int)
 @click.option('-seed', help='mutation rate', type=int)
 @click.option('-demo', help='demographic model', type=str)
 @click.option('-out_file', help='Filename to output to', type=str)
@@ -26,7 +26,6 @@ def main(n, truen, num_loci, reps, s, m, r, init, window, seed, demo, out_file):
     m = m * window / 2 / (num_loci-1)
     r = r * window / 2 / (num_loci-1)
     
-    # Define parameters (rescaling parameters for smaller simulation population size)
     scale_ratio = truen/n
     init = json.loads(init)
     sim.setRNG(seed=seed)
@@ -51,11 +50,13 @@ def main(n, truen, num_loci, reps, s, m, r, init, window, seed, demo, out_file):
                     simdem.ExponentialGrowthModel(T=int(.1*n), N0=bot_size_sim, NT=end_size_sim)])
         gens_sim = int(.4*n)
     elif demo == 'growth':
-        model = simdem.ExponentialGrowthModel(T=int(.1*n), N0=bot_size_sim, NT=end_size_sim)
+        model = simdem.MultiStageModel([
+                    simdem.InstantChangeModel(T=int(.3*n), N0=n, G=1, NG=bot_size_sim),
+                    simdem.ExponentialGrowthModel(T=int(.1*n), N0=bot_size_sim, NT=end_size_sim)])
+        burnin_sim = int(.3*n)
         gens_sim = int(.1*n)
     
 
-    # Initialize simulations
     selLocus = 0
     loci = [i for i in range(num_loci+1)]
     pop = sim.Population(size=int(n), ploidy=2, loci=[num_loci+1],
@@ -66,21 +67,15 @@ def main(n, truen, num_loci, reps, s, m, r, init, window, seed, demo, out_file):
     haploFreqs_init = []
     ld_sets = [(selLocus, i, 1, 1) for i in loci[1:]]
     out= []
-
-    # Runsimulations
     for k in range(reps):
-        print(k)
         pop1 = pop.clone()
-        pop1 = pop.clone()
-
-        # Carefully construct initial conditions to model starting at stationarity
-        if demo == 'growth':
-            means = np.random.beta(4*bot_size_sim*m, 4*bot_size_sim*m, size=num_loci)
-        else:
-            means = np.random.beta(4*n*m, 4*n*m, size=num_loci)
-        genotype_focal=  [np.random.binomial(1, p) for p in means]
+        means = np.random.beta(4*n*m, 4*n*m, size=num_loci)
+        genotype_focal =  [np.random.binomial(1, p) for p in means]
         for i, ind in enumerate(pop1.individuals()):
-                initial_A = pop1.popSize()*init
+                if demo != 'growth':
+                    initial_A = pop1.popSize()*init
+                else:
+                    initial_A = 0
                 if i < initial_A:
                     genotype = tuple([1] + genotype_focal)
                     ind.setGenotype(genotype, ploidy=0)
@@ -95,11 +90,34 @@ def main(n, truen, num_loci, reps, s, m, r, init, window, seed, demo, out_file):
                     ind.setGenotype(genotype, ploidy=1)
         pop1.dvars().freqA = []
         pop1.dvars().ld = []
+        if demo == 'growth':
+            g = pop1.evolve(
+                    preOps=[sim.SNPMutator(u=m, v=m)],
+                    matingScheme=sim.RandomMating(
+                    ops=sim.Recombinator(rates=rec_rates, loci=loci), subPopSize=model),
+                    finalOps=[sim.Stat(alleleFreq=loci, LD=ld_sets),
+                                        sim.PyExec('ld.append([LD[%d][i] for i in %s])' % (selLocus, loci[1:])),
+                                        sim.PyExec('freqA.append(alleleFreq)')],
+                    gen = burnin_sim)
+            first_mutant = pop1.individual(0).genotype(ploidy=0)
+            first_mutant[0] = 1
+            initial_A = pop1.popSize()*init
+            for i, ind in enumerate(pop1.individuals()):
+                if i < initial_A:
+                    ind.setGenotype(first_mutant, ploidy=0)
+                    ind.setGenotype(first_mutant, ploidy=1)
+                else:
+                    genotype = ind.genotype(ploidy=0)
+                    genotype[0] = 0
+                    ind.setGenotype(genotype, ploidy=0)
+                    genotype = ind.genotype(ploidy=1)
+                    genotype[0] = 0
+                    ind.setGenotype(genotype, ploidy=1)
+        
         g = pop1.evolve(initOps=[sim.Stat(alleleFreq=loci, LD=ld_sets),
                                         sim.PyExec('ld.append([LD[%d][i] for i in %s])' % (selLocus, loci[1:])),
                                         sim.PyExec('freqA.append(alleleFreq)')],
-            preOps=[
-                                sim.MapSelector(loci=selLocus, fitness={(0, 0): 1, (0, 1): 1+s, (1, 1): 1+2*s}),
+                        preOps=[ sim.MapSelector(loci=selLocus, fitness={(0, 0): 1, (0, 1): 1+s, (1, 1): 1+2*s}),
                                         sim.SNPMutator(u=m, v=m)
                                     ],
                             matingScheme=sim.RandomMating(ops=sim.Recombinator(rates=rec_rates, loci=loci), subPopSize=model),
@@ -107,11 +125,8 @@ def main(n, truen, num_loci, reps, s, m, r, init, window, seed, demo, out_file):
                                         sim.PyExec('ld.append([LD[%d][i] for i in %s])' % (selLocus, loci[1:])),
                                         sim.PyExec('freqA.append(alleleFreq)')],
                             gen = gens_sim)
-
-        
         out.append([pop1.dvars().freqA, pop1.dvars().ld])
     
-    # Unpack simulations
     a_freq_simupop = []
     for loc in loci:
         a_freq = []
@@ -126,7 +141,6 @@ def main(n, truen, num_loci, reps, s, m, r, init, window, seed, demo, out_file):
             ld_freqs.append([rep_step[loc-1] for rep_step in rep[1]])
         ld_freqs_simupop.append(ld_freqs)
 
-    # Save data
     out_dict = {}
     out_dict['params'] = {'s' : s, 'init' : init, 'r' : r, 'bot' : bot_gen_sim, 'exp' : exp_gen_sim, 'gen': gens_sim, 'demog' : demo}
     out_dict['data'] = {'a' : a_freq_simupop, 'ld' :  ld_freqs_simupop}
