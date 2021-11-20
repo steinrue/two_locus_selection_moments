@@ -31,6 +31,8 @@ class MomentInterpolator(object):
             self.gen_jackknife_matrix_constrained()
         elif self.interp_type == 'loglinBound':
             self.gen_boundary_interpolator()
+        elif self.interp_type == 'project':
+            pass
         else:
             assert (False), "unknown interpolation type"
         
