@@ -2,7 +2,7 @@ import numpy as np
 import sys
 # sys.path.append ("/Users/efriedlander/Dropbox/Research/twoLocusDiffusion")
 sys.path.append ("/gpfs/data/steinruecken-lab/efriedlander-folder/momentsProject/twoLocusDiffusion")
-import momlink.ode as ode
+import momlink.mutationHackedOde as ode
 import momlink.demography as dem
 from momlink.helper_funcs import Moments, MomentReducer, MomentMarginalizer, MomentInterpolator
 import pickle as pkl
@@ -41,7 +41,7 @@ def main(order, interp_type, renorm, clip, parsimonious, demog_fn, m, s, r, init
     demog = dem.Demography(fn=demog_fn)
     ode_inst = ode.TwoLocMomOde(order, interp_type=interp_type, renorm=renorm, clip_ind=clip, parsimonious=parsimonious)
     moment_dict = {samp_size : Moments(samp_size) for samp_size in all_orders}
-    interpolators = {samp_size :  MomentInterpolator(moment_dict[order], moment_dict[samp_size], interp_type='loglinBound') for samp_size in higher_orders}
+    interpolators = {samp_size :  MomentInterpolator(moment_dict[order], moment_dict[samp_size]) for samp_size in higher_orders}
     marginalizers = {samp_size : MomentMarginalizer(moment_dict[samp_size]) for samp_size in all_orders}
     for i, r_point in enumerate(rec_grid):
         params = {
@@ -57,7 +57,6 @@ def main(order, interp_type, renorm, clip, parsimonious, demog_fn, m, s, r, init
         if folded:
             params['mutModel'] = 'rec'
             params['init'] = 'Stationary'
-    
         ode_inst.set_parameters(**params)
         [times, moment_trajectory] = ode_inst.integrate_forward_RK45(gens[-1], time_steps=gens, keep_traj=True, min_step_size=min_step)
 

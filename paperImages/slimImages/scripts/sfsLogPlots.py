@@ -18,9 +18,9 @@ from matplotlib.lines import Line2D
 @click.option('-s_vals', help='list of save points', type=str   )
 @click.option('-window_vals', help='list of save points', type=str   )
 @click.option('-folded/-unfolded', help='Whether SFS should be folded', default=True)
-@click.option('-includefixed/-excludefixed', help='Whether SFS should be folded', default=True)
 @click.option('-rags/-reg', help='Which mutation method', default=True)
-def main(m, r, init, s_vals, window_vals, folded, includefixed, rags):
+def main(m, r, init, s_vals, window_vals, folded, rags):
+    includefixed = False
     s_vals = json.loads(s_vals)
     window_vals = json.loads(window_vals)
     orders = [31, 51, 71, 101]
@@ -57,13 +57,13 @@ def main(m, r, init, s_vals, window_vals, folded, includefixed, rags):
     if rags:
         slim_temp = 'data/slim_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}.p'.format(m=m, r=r, init=init)
         ode_temp = 'ode_output/odeOutputRags_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no_{folded}.p'.format(m=m, r=r, init=init, folded=folded_name)
-        sfs_temp = 'images/sfsrags_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, init=init)
-        sfs_grid_temp = 'images/sfsgridrags_m_{m}_r_{r}_i_{init}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no_{folded}_{includeFixed}.pdf'.format(m=m, r=r, init=init, folded=folded_name, includeFixed=includefixed_name)
+        sfs_temp = 'images/sfslogrags_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, init=init)
+        sfs_grid_temp = 'images/sfsloggridrags_m_{m}_r_{r}_i_{init}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no_{folded}_{includeFixed}.pdf'.format(m=m, r=r, init=init, folded=folded_name, includeFixed=includefixed_name)
     else:
         slim_temp = 'data/slim_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}.p'.format(m=m, r=r, init=init)
         ode_temp = 'ode_output/odeOutput_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no_{folded}.p'.format(m=m, r=r, init=init, folded=folded_name)
-        sfs_temp = 'images/sfs_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, init=init)
-        sfs_grid_temp = 'images/sfsgrid_m_{m}_r_{r}_i_{init}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no_{folded}_{includeFixed}.pdf'.format(m=m, r=r, init=init, folded=folded_name, includeFixed=includefixed_name)
+        sfs_temp = 'images/sfslog_m_{m}_s_{{s}}_r_{r}_i_{init}_win_{{num_loci}}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no.pdf'.format(m=m, r=r, init=init)
+        sfs_grid_temp = 'images/sfsloggrid_m_{m}_r_{r}_i_{init}_order_{{order}}_minstep_0.0001_loglin_renorm_clip_parsimonious-no_{folded}_{includeFixed}.pdf'.format(m=m, r=r, init=init, folded=folded_name, includeFixed=includefixed_name)
     
 
     c1=np.array(mpl.colors.to_rgb('red'))
@@ -135,8 +135,9 @@ def main(m, r, init, s_vals, window_vals, folded, includefixed, rags):
                 ax1.legend(loc='upper right', prop={"size":12})
                 ax1.set_title('$\sigma$ = '+ str(s*4*10000) + ' and Window Size = ' + str(num_loci//1000)+'kBP')
                 ax1.set_yscale('log')
+                ax1.set_xscale('log')
                 ax1. set_ylim([np.power(10, min_value), np.power(10, max_value)])
-                ax1. set_xlim([x_vals[0]-1, x_vals[-1]+1])
+                ax1. set_xlim([x_vals[0], x_vals[-1]])
                 ax1.yaxis.get_major_locator().numticks = 4
                 sfs_fn = sfs_temp.format(s=s, num_loci=num_loci, order=order)
                 fig1.savefig(sfs_fn, format='pdf')
@@ -210,8 +211,9 @@ def main(m, r, init, s_vals, window_vals, folded, includefixed, rags):
                 if j == 0:
                     axes[i, j].set_ylabel('Expected Frequency')
                 axes[i, j].set_yscale('log')
+                axes[i, j].set_xscale('log')
                 axes[i, j]. set_ylim([np.power(10, min_value), np.power(10, max_value)])
-                axes[i, j]. set_xlim([x_vals[0]-1, x_vals[-1]+1])
+                axes[i, j]. set_xlim([x_vals[0], x_vals[-1]])
                 # ymin, ymax = axes[i, j].get_ylim()
                 # axes[i, j].set_yticks(np.geomspace(ymin, ymax, 5))
                 axes[i, j].yaxis.get_major_locator().numticks = 4
@@ -220,8 +222,8 @@ def main(m, r, init, s_vals, window_vals, folded, includefixed, rags):
                 if i == len(s_vals[:last_s])-1:
                     lgds.append(axes[i, j].legend(title='Generations before present', loc='upper center', bbox_to_anchor=(0.5, -0.2), shadow=False, ncol=1))
                     axes[i, j].set_xlabel('Minor Allele Frequency')
-                    axes[i, j].xaxis.set_ticks(np.linspace(1, max(x_vals), 5))
-                    axes[i, j].xaxis.set_ticklabels(np.linspace(1, max(x_vals), 5).astype(int))
+                    axes[i, j].xaxis.set_ticks(np.round(np.geomspace(1, max(x_vals), 4)))
+                    axes[i, j].xaxis.set_ticklabels(np.round(np.geomspace(1, max(x_vals), 4)).astype(int))
                 if i == 0:
                     custom_lines = [Line2D([0], [0], color='black'),
                     Line2D([0], [0], color='black', linestyle='dashed')]
